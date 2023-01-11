@@ -110,6 +110,190 @@ class MessagePack:
         else:
             raise NotImplementedError
 
+
+class Parser:
+
+    def parse(self, hex_str: str):
+        prefix = hex_str[:2]
+        if hex_str[0] in '01234567':  # positive fixint
+            value = int(hex_str[:2], 16)
+            return value, hex_str[2:]
+
+        elif hex_str[0] == '8':  # map
+            d = {}
+            dict_size = int(hex_str[1], 16)
+            current_size = 0
+            hex_str = hex_str[2:]
+            while current_size < dict_size:
+                # key
+                key, hex_str = self.parse(hex_str)
+                # value
+                value, hex_str = self.parse(hex_str)
+                d[key] = value
+                current_size += 1
+            return d, hex_str
+
+        elif hex_str[0] == '9':  # array
+            l = []
+            list_size = int(hex_str[1], 16)
+            current_size = 0
+            hex_str = hex_str[2:]
+            while current_size < list_size:
+                value, hex_str = self.parse(hex_str)
+                l.append(value)
+                current_size += 1
+            return l, hex_str
+
+        elif hex_str[0] == 'a':  # str
+            str_size = int(hex_str[1], 16)
+            str_value = hex_str[2:str_size * 2 + 2]
+            s = ''
+            for i in range(0, str_size * 2, 2):
+                s += chr(int(str_value[i:i + 2], 16))
+            hex_str = hex_str[str_size * 2 + 2:]
+            return s, hex_str
+
+        elif hex_str[0] == 'b':  # str
+            str_size = int(hex_str[1], 16) + 16
+            str_value = hex_str[2:str_size * 2 + 2]
+            s = ''
+            for i in range(0, str_size * 2, 2):
+                s += chr(int(str_value[i:i + 2], 16))
+            hex_str = hex_str[str_size * 2 + 2:]
+            return s, hex_str
+
+        elif prefix == 'c0':
+            return None, hex_str[2:]
+        elif prefix == 'c2':
+            return False, hex_str[2:]
+        elif prefix == 'c3':
+            return True, hex_str[2:]
+
+        elif prefix == 'ca':  # float 32
+            buffer = ''.join(reversed([hex_str[i:i + 2] for i in range(2, 10, 2)]))
+            value = struct.unpack('f', bytes.fromhex(buffer))[0]
+            return value, hex_str[10:]
+        elif prefix == 'cb':  # float 64
+            buffer = ''.join(reversed([hex_str[i:i + 2] for i in range(2, 18, 2)]))
+            value = struct.unpack('d', bytes.fromhex(buffer))[0]
+            return value, hex_str[18:]
+
+        elif prefix == 'cc':  # uint 8
+            value = int(hex_str[2:4], 16)
+            return value, hex_str[4:]
+        elif prefix == 'cd':  # uint 16
+            value = int(hex_str[2:6], 16)
+            return value, hex_str[6:]
+        elif prefix == 'ce':  # uint 32
+            value = int(hex_str[2:10], 16)
+            return value, hex_str[10:]
+        elif prefix == 'cf':  # uint 64
+            value = int(hex_str[2:18], 16)
+            return value, hex_str[18:]
+
+        elif prefix == 'd0':  # int 8
+            value = int(hex_str[2:4], 16) - 2**8
+            return value, hex_str[4:]
+        elif prefix == 'd1':  # int 16
+            value = int(hex_str[2:6], 16) - 2**16
+            return value, hex_str[6:]
+        elif prefix == 'd2':  # int 32
+            value = int(hex_str[2:10], 16) - 2**32
+            return value, hex_str[10:]
+        elif prefix == 'd3':  # int 64
+            value = int(hex_str[2:18], 16) - 2**64
+            return value, hex_str[18:]
+
+        elif prefix == 'd9':  # str 8
+            str_size = int(hex_str[2:4], 16)
+            str_value = hex_str[4:str_size * 2 + 4]
+            s = ''
+            for i in range(0, str_size * 2, 2):
+                s += chr(int(str_value[i:i + 2], 16))
+            hex_str = hex_str[str_size * 2 + 4:]
+            return s, hex_str
+
+        elif prefix == 'da':  # str 16
+            str_size = int(hex_str[2:6], 16)
+            str_value = hex_str[6:str_size * 2 + 6]
+            s = ''
+            for i in range(0, str_size * 2, 2):
+                s += chr(int(str_value[i:i + 2], 16))
+            hex_str = hex_str[str_size * 2 + 6:]
+            return s, hex_str
+
+        elif prefix == 'db':  # str 32
+            str_size = int(hex_str[2:10], 16)
+            str_value = hex_str[10:str_size * 2 + 10]
+            s = ''
+            for i in range(0, str_size * 2, 2):
+                s += chr(int(str_value[i:i + 2], 16))
+            hex_str = hex_str[str_size * 2 + 10:]
+            return s, hex_str
+
+        elif prefix == 'dc':  # array 16
+            l = []
+            list_size = int(hex_str[2:6], 16)
+            current_size = 0
+            hex_str = hex_str[6:]
+            while current_size < list_size:
+                value, hex_str = self.parse(hex_str)
+                l.append(value)
+                current_size += 1
+            return l, hex_str
+
+        elif prefix == 'dd':  # array 32
+            l = []
+            list_size = int(hex_str[2:10], 16)
+            current_size = 0
+            hex_str = hex_str[10:]
+            while current_size < list_size:
+                value, hex_str = self.parse(hex_str)
+                l.append(value)
+                current_size += 1
+            return l, hex_str
+
+        elif prefix == 'de':  # map 16
+            d = {}
+            dict_size = int(hex_str[2:6], 16)
+            current_size = 0
+            hex_str = hex_str[6:]
+            while current_size < dict_size:
+                # key
+                key, hex_str = self.parse(hex_str)
+                # value
+                value, hex_str = self.parse(hex_str)
+                d[key] = value
+                current_size += 1
+            return d, hex_str
+
+        elif prefix == 'df':  # map 32
+            d = {}
+            dict_size = int(hex_str[2:10], 16)
+            current_size = 0
+            hex_str = hex_str[10:]
+            while current_size < dict_size:
+                # key
+                key, hex_str = self.parse(hex_str)
+                # value
+                value, hex_str = self.parse(hex_str)
+                d[key] = value
+                current_size += 1
+            return d, hex_str
+
+        elif hex_str[0] == 'f':  # negative int
+            value = int(hex_str[1], 16) - 2**4
+            return value, hex_str[2:]
+        elif hex_str[0] == 'e':  # negative int
+            value = int(hex_str[1], 16) - 2**5
+            return value, hex_str[2:]
+
+        else:
+            raise Exception('invalid hex string')
+
+
+class Converter:
+
     @staticmethod
     def to_msgpack(input: str):
         msgpack = MessagePack()
@@ -117,3 +301,11 @@ class MessagePack:
             return msgpack.null_to_hex(input)
         data = json.loads(input)
         return msgpack.convert(data)
+
+    @staticmethod
+    def to_json(input: str):
+        parser = Parser()
+        result, hex_str = parser.parse(input)
+        if hex_str:
+            raise Exception('invalid hex string')
+        return result
